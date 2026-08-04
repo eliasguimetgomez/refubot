@@ -2,7 +2,9 @@ name: Vigilar plaza interior en Goriz
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Offset from round minutes to reduce GitHub scheduler congestion.
+    # Runs at minute 03, 08, 13, ..., 58: still one check every 5 minutes.
+    - cron: "3-58/5 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
