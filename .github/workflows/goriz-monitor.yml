@@ -1,0 +1,86 @@
+name: Vigilar plaza interior en Goriz
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Comprobar sin enviar correo ni detener el bot"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: goriz-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check whether an alert was already sent
+        id: state
+        shell: bash
+        run: |
+          if [ -f state/alert-sent.json ]; then
+            echo "alerted=true" >> "$GITHUB_OUTPUT"
+            echo "Alert already sent; no page request will be made."
+          else
+            echo "alerted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.state.outputs.alerted != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        if: steps.state.outputs.alerted != 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Locate Chrome
+        if: steps.state.outputs.alerted != 'true'
+        shell: bash
+        run: |
+          CHROME_BINARY="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          if [ -z "$CHROME_BINARY" ]; then
+            echo "Chrome or Chromium was not found on the runner" >&2
+            exit 1
+          fi
+          echo "CHROME_PATH=$CHROME_BINARY" >> "$GITHUB_ENV"
+
+      - name: Check Goriz availability
+        if: steps.state.outputs.alerted != 'true'
+        id: monitor
+        env:
+          ALERT_TO: ${{ secrets.GMAIL_USER }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: npm run check
+
+      - name: Stop after a confirmed email or the deadline
+        if: always() && steps.state.outputs.alerted != 'true' && steps.monitor.outputs.stop == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if [ -f state/alert-sent.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/alert-sent.json
+            git commit -m "chore: record Goriz alert"
+            git push
+          fi
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/goriz-monitor.yml/disable"
