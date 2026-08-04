@@ -1,0 +1,14 @@
+{
+  "name": "refubot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-goriz.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "nodemailer": "9.0.3",
+    "playwright-core": "1.62.1"
+  }
+}

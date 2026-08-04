@@ -1,0 +1,48 @@
+name: Validate RefuBot
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - scripts/**
+      - test/**
+      - .github/workflows/**
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          CHROME_BINARY="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          if [ -z "$CHROME_BINARY" ]; then
+            echo "Chrome or Chromium was not found on the runner" >&2
+            exit 1
+          fi
+          echo "CHROME_PATH=$CHROME_BINARY" >> "$GITHUB_ENV"
+
+      - name: Check the live booking flow without email
+        env:
+          DRY_RUN: "true"
+        run: npm run check
