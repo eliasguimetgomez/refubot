@@ -1,12 +1,14 @@
 {
   "name": "refubot",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "inspect": "node scripts/inspect-booking.mjs"
+    "check": "node scripts/check-goriz.mjs",
+    "test": "node --test"
   },
   "dependencies": {
+    "nodemailer": "9.0.3",
     "playwright-core": "1.62.1"
   }
 }
